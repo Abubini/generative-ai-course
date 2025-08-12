@@ -1,58 +1,82 @@
 import os
+import time
 from dotenv import load_dotenv
-from langchain.llms import OpenAI
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
+import google.generativeai as genai
 
 # Load environment variables
 load_dotenv()
 
-def create_interactive_agent():
-    """Create an interactive AI agent with memory"""
+class GeminiChatAgent:
+    """Interactive chat agent using Gemini with conversation memory"""
     
-    # Initialize the language model
-    llm = OpenAI(temperature=0.7)
+    def __init__(self, model_name='gemini-1.5-flash-latest'):
+        # Configure the Gemini API
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+        
+        # Initialize the model
+        self.model = genai.GenerativeModel(
+            model_name,
+            generation_config={
+                "temperature": 0.7,
+                "max_output_tokens": 1000,
+            },
+            system_instruction="You are a helpful, friendly AI assistant. Keep responses concise and human-like."
+        )
+        
+        # Start the chat session
+        self.chat = self.model.start_chat(history=[])
     
-    # Create memory for conversation
-    memory = ConversationBufferMemory()
-    
-    # Create conversation chain
-    conversation = ConversationChain(
-        llm=llm,
-        memory=memory,
-        verbose=True
-    )
-    
-    return conversation
+    def generate_response(self, user_input, max_retries=3):
+        """Generate response with conversation history"""
+        for attempt in range(max_retries):
+            try:
+                response = self.chat.send_message(user_input)
+                return response.text
+            except Exception as e:
+                if "quota" in str(e).lower() and attempt < max_retries - 1:
+                    wait_time = 60 * (attempt + 1)
+                    print(f"Waiting {wait_time} seconds due to rate limits...")
+                    time.sleep(wait_time)
+                    continue
+                print(f"Error details: {e}")  # More detailed error reporting
+                raise e
 
 def chat_interface():
     """Interactive chat interface"""
     
-    print("🤖 Interactive AI Agent")
+    print("🤖 Interactive AI Agent (Gemini)")
     print("Type 'quit' to exit\n")
     
     # Create the agent
-    agent = create_interactive_agent()
+    try:
+        agent = GeminiChatAgent()
+    except Exception as e:
+        print(f"Failed to initialize agent: {e}")
+        return
     
     while True:
-        # Get user input
-        user_input = input("You: ").strip()
-        
-        # Check for quit command
-        if user_input.lower() in ['quit', 'exit', 'bye']:
-            print("Goodbye! 👋")
-            break
-        
-        # Skip empty input
-        if not user_input:
-            continue
-        
         try:
+            # Get user input
+            user_input = input("You: ").strip()
+            
+            # Check for quit command
+            if user_input.lower() in ['quit', 'exit', 'bye']:
+                print("Goodbye! 👋")
+                break
+            
+            # Skip empty input
+            if not user_input:
+                continue
+            
             # Get response from agent
-            response = agent.predict(input=user_input)
+            response = agent.generate_response(user_input)
             print(f"AI: {response}\n")
+            
+        except KeyboardInterrupt:
+            print("\nGoodbye! 👋")
+            break
         except Exception as e:
-            print(f"Error: {e}\n")
+            print(f"Error: {str(e)}\n")
 
 if __name__ == "__main__":
     chat_interface()

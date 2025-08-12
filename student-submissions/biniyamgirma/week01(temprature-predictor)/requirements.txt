@@ -5,3 +5,7 @@ seaborn
 scikit-learn
 joblib
 python-dateutil
+xgboost
+streamlit
+plotly
+streamlit-extras
